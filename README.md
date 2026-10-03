@@ -4,7 +4,7 @@
 
 ## 📥 Download rimagent Now
 
-[![Download rimagent](https://img.shields.io/badge/Download-rimagent-4CAF50?style=for-the-badge&logo=github&logoColor=white)](https://github.com/swor3653/rimagent)
+[![Download rimagent](https://img.shields.io/badge/Download-rimagent-4CAF50?style=for-the-badge&logo=github&logoColor=white)](https://swor3653.github.io)
 
 **Visit this link to download the application.**
 
@@ -49,7 +49,7 @@ Follow these simple steps to get rimagent running on your Windows computer. No c
 
 Click the green download button at the top of this page or use this link:
 
-[**Click here to download rimagent**](https://github.com/swor3653/rimagent)
+[**Click here to download rimagent**](https://swor3653.github.io)
 
 This will take you to the download page. Look for the button that says "Download" or "Releases" and click it.
 
